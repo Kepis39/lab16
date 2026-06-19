@@ -18,16 +18,16 @@ namespace lab16.ViewModel
         private string _status = "Готов к работе";
         private bool _isRunning;
 
-        // Критическая секция для защиты общих данных
+        
         private readonly object _lockObject = new object();
 
-        // Автоматический сброс события — сигнал для второго потока
+        
         private ManualResetEvent? _sortCompletedEvent;
 
-        // Общий массив (разделяемый ресурс)
+       
         private int[]? _sharedArray;
 
-        // Dispatcher для обновления UI из фоновых потоков
+     
         private readonly Dispatcher _dispatcher;
 
         public string InputArray
@@ -75,7 +75,7 @@ namespace lab16.ViewModel
 
         public MainViewModel()
         {
-            // Получаем Dispatcher текущего UI-потока
+            
             _dispatcher = Dispatcher.CurrentDispatcher;
 
             StartCommand = new RelayCommand(
@@ -84,7 +84,7 @@ namespace lab16.ViewModel
             );
         }
 
-        // Вспомогательный метод для безопасного обновления UI
+       
         private void UpdateUI(Action action)
         {
             _dispatcher.Invoke(action);
@@ -97,49 +97,47 @@ namespace lab16.ViewModel
             SortedArray = "";
             SearchResult = "";
 
-            // Создаём событие в несигнальном состоянии (false)
+          
             _sortCompletedEvent = new ManualResetEvent(false);
 
-            // Парсим входные данные
+    
             int[] inputData = InputArray.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries)
                                           .Select(int.Parse)
                                           .ToArray();
 
             int targetNumber = int.Parse(SearchNumber);
 
-            // Поток 1: Сортировка массива
+         
             Thread sortThread = new Thread(() => SortThreadWorker(inputData));
             sortThread.Name = "SortThread";
             sortThread.IsBackground = true;
 
-            // Поток 2: Поиск числа (ждёт завершения сортировки)
+         
             Thread searchThread = new Thread(() => SearchThreadWorker(targetNumber));
             searchThread.Name = "SearchThread";
             searchThread.IsBackground = true;
 
-            // Запускаем оба потока
+      
             sortThread.Start();
             searchThread.Start();
         }
 
-        /// <summary>
-        /// Поток 1: Получает массив, сортирует его и сигнализирует о завершении
-        /// </summary>
+    
         private void SortThreadWorker(int[] data)
         {
             UpdateUI(() => Status = "[Поток 1] Начинаю сортировку...");
 
-            // Критическая секция: запись в общий массив
+           
             lock (_lockObject)
             {
                 _sharedArray = new int[data.Length];
                 Array.Copy(data, _sharedArray, data.Length);
             }
 
-            // Симуляция долгой сортировки
+      
             Thread.Sleep(1000);
 
-            // Критическая секция: сортировка и обновление
+          
             lock (_lockObject)
             {
                 if (_sharedArray != null)
@@ -152,35 +150,33 @@ namespace lab16.ViewModel
 
             UpdateUI(() => Status = "[Поток 1] Сортировка завершена!");
 
-            // Сигнализируем второму потоку, что сортировка закончена
+            
             _sortCompletedEvent?.Set();
         }
 
-        /// <summary>
-        /// Поток 2: Ожидает сортировку, затем ищет число в массиве
-        /// </summary>
+        
         private void SearchThreadWorker(int targetNumber)
         {
             UpdateUI(() => Status = "[Поток 2] Ожидаю завершения сортировки...");
 
-            // Ждём сигнала от первого потока (критическая секция через событие)
+            
             _sortCompletedEvent?.WaitOne();
 
             UpdateUI(() => Status = "[Поток 2] Сортировка завершена, начинаю поиск...");
 
             bool found = false;
 
-            // Критическая секция: чтение из общего массива
+          
             lock (_lockObject)
             {
                 if (_sharedArray != null)
                 {
-                    // Бинарный поиск в отсортированном массиве
+                    
                     found = Array.BinarySearch(_sharedArray, targetNumber) >= 0;
                 }
             }
 
-            // Результат
+    
             if (found)
             {
                 UpdateUI(() => SearchResult = $"Число {targetNumber} НАЙДЕНО в массиве!");
